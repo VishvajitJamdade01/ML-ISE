@@ -1,0 +1,75 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, LabelEncoder, label_binarize
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, roc_curve, auc
+
+# Load dataset
+df = pd.read_csv("/content/iris.csv")
+
+# Encode target variable
+le = LabelEncoder()
+df['species'] = le.fit_transform(df['species'])  # 0, 1, 2
+
+# Features and target
+X = df.drop(columns=['species'])
+y = df['species']
+
+# Binarize target for ROC curve
+y_bin = label_binarize(y, classes=[0, 1, 2])
+
+# Split data
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+
+# Standardize
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# Train SVM
+svm_model = SVC(kernel='rbf', C=1.0, gamma='scale', probability=True, random_state=42)
+svm_model.fit(X_train_scaled, y_train)
+
+# Predict
+y_pred = svm_model.predict(X_test_scaled)
+y_proba = svm_model.predict_proba(X_test_scaled)
+
+# Evaluation
+accuracy = accuracy_score(y_test, y_pred)
+print(f"✅ Accuracy: {accuracy:.2f}")
+print("\n📋 Classification Report:\n", classification_report(y_test, y_pred, target_names=le.classes_))
+
+# Confusion Matrix
+plt.figure(figsize=(6, 4))
+cm = confusion_matrix(y_test, y_pred)
+sns.heatmap(cm, annot=True, fmt='d', cmap="Blues", xticklabels=le.classes_, yticklabels=le.classes_)
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.title("Confusion Matrix")
+plt.show()
+
+# ROC Curve for multiclass (One-vs-Rest)
+y_test_bin = label_binarize(y_test, classes=[0, 1, 2])
+fpr = dict()
+tpr = dict()
+roc_auc = dict()
+
+for i in range(3):
+    fpr[i], tpr[i], _ = roc_curve(y_test_bin[:, i], y_proba[:, i])
+    roc_auc[i] = auc(fpr[i], tpr[i])
+
+# Plot ROC Curves
+plt.figure(figsize=(7, 6))
+for i, class_name in enumerate(le.classes_):
+    plt.plot(fpr[i], tpr[i], label=f"{class_name} (AUC = {roc_auc[i]:.2f})")
+
+plt.plot([0, 1], [0, 1], 'k--', label="Random Guess")
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.title("Multiclass ROC Curve (OvR)")
+plt.legend(loc="lower right")
+plt.grid(True)
+plt.show()

@@ -1,0 +1,73 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.cluster import DBSCAN
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+from scipy.spatial.distance import cdist
+
+# Load the dataset
+df = pd.read_csv('/content/iris.csv')
+X = df.drop('species', axis=1)
+
+# Standardize the data
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# Reduce to 2D for visualization using PCA
+pca = PCA(n_components=2)
+X_pca = pca.fit_transform(X_scaled)
+
+# DBSCAN parameters (these can be tuned)
+epsilon = 0.6
+min_pts = 5
+
+# Compute distance matrix (optional, for insight)
+distance_matrix = cdist(X_pca, X_pca, metric='euclidean')
+print("\nDistance Matrix (first 5 rows):")
+print(distance_matrix[:5, :5])
+
+# Count neighbors within ε
+neighbors_count = np.sum(distance_matrix <= epsilon, axis=1) - 1
+print("\nNumber of Neighbors for First 10 Points:")
+for i, count in enumerate(neighbors_count[:10]):
+    print(f"P{i+1}: {count} neighbors")
+
+# Apply DBSCAN
+dbscan = DBSCAN(eps=epsilon, min_samples=min_pts, metric='euclidean')
+labels = dbscan.fit_predict(X_pca)
+
+# Identify core, border, and noise points
+core_samples_mask = np.zeros_like(labels, dtype=bool)
+core_samples_mask[dbscan.core_sample_indices_] = True
+
+core_points = X_pca[core_samples_mask]
+border_points = X_pca[(labels != -1) & ~core_samples_mask]
+noise_points = X_pca[labels == -1]
+
+# Plotting
+plt.figure(figsize=(10, 7))
+
+# Core points
+if core_points.size > 0:
+    plt.scatter(core_points[:, 0], core_points[:, 1], c='blue', s=100, label='Core Points', edgecolors='k')
+
+# Border points
+if border_points.size > 0:
+    plt.scatter(border_points[:, 0], border_points[:, 1], c='green', s=80, label='Border Points', edgecolors='k')
+
+# Noise points
+if noise_points.size > 0:
+    plt.scatter(noise_points[:, 0], noise_points[:, 1], c='red', s=100, label='Noise Points', marker='x')
+
+# Annotate first few points
+for i, (x, y) in enumerate(X_pca[:10]):
+    plt.text(x + 0.1, y, f"P{i+1}", fontsize=9)
+
+plt.xlabel("PCA Component 1")
+plt.ylabel("PCA Component 2")
+plt.title("DBSCAN Clustering on Iris Dataset (PCA-reduced)")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()

@@ -1,0 +1,71 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+import seaborn as sns
+
+# Load the dataset
+df = pd.read_csv('/content/iris.csv')
+
+# Encode the target variable
+le = LabelEncoder()
+df['species'] = le.fit_transform(df['species'])  # 0 = setosa, 1 = versicolor, 2 = virginica
+
+# Split features and target
+X = df.drop(columns=['species'])
+y = df['species']
+
+# Standardize features
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42, stratify=y)
+
+# Cross-validation to find best k
+k_values = range(1, 11)
+cv_scores = []
+
+for k in k_values:
+    knn = KNeighborsClassifier(n_neighbors=k)
+    scores = cross_val_score(knn, X_train, y_train, cv=5, scoring='accuracy')
+    cv_scores.append(np.mean(scores))
+
+# Plotting k vs accuracy
+plt.figure(figsize=(8, 6))
+plt.plot(k_values, cv_scores, marker='o', linestyle='-', color='b')
+plt.xlabel('k (Number of Neighbors)')
+plt.ylabel('Cross-Validated Accuracy')
+plt.title('KNN: Accuracy vs k Value')
+plt.xticks(k_values)
+plt.grid(True)
+plt.show()
+
+# Optimal k
+optimal_k = k_values[np.argmax(cv_scores)]
+print(f"✅ The optimal value of k is: {optimal_k}")
+
+# Train final model
+knn_optimal = KNeighborsClassifier(n_neighbors=optimal_k)
+knn_optimal.fit(X_train, y_train)
+
+# Predict on test set
+y_pred = knn_optimal.predict(X_test)
+
+# Evaluate
+test_accuracy = accuracy_score(y_test, y_pred)
+print(f"✅ Test accuracy with k={optimal_k}: {test_accuracy:.2f}")
+print("\n📊 Classification Report:\n", classification_report(y_test, y_pred, target_names=le.classes_))
+
+# Confusion Matrix
+conf_matrix = confusion_matrix(y_test, y_pred)
+plt.figure(figsize=(6,5))
+sns.heatmap(conf_matrix, annot=True, cmap='Blues', fmt='d',
+            xticklabels=le.classes_, yticklabels=le.classes_)
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix')
+plt.show()
